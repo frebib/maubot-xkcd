@@ -1,5 +1,9 @@
-# Whether or not to use inline images for sending comics.
-inline: false
+# Send format of xkcd message events. Defaults to 'split'.
+# Mode 'split' sends the image and alt text as separate events. Mode 'inline'
+# sends a text message with the image embedded as a HTML <a> tag (works best
+# with browser-based clients). Mode 'caption' sends the image with the alt text
+# as an MSC2530 caption (requires client support).
+post_mode: split
 # The interval to poll xkcd for new comics in.
 poll_interval: 900
 # The time to sleep between send requests when broadcasting a new xkcd comic.

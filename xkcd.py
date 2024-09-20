@@ -121,7 +121,10 @@ class Subscriber:
 
 class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
-        helper.copy("inline")
+        if "inline" in self:
+            helper.base["post_mode"] = "inline" if self["inline"] else "split"
+        else:
+            helper.copy("post_mode")
         helper.copy("poll_interval")
         helper.copy("spam_sleep")
         helper.copy("allow_reindex")
@@ -234,33 +237,63 @@ class XKCDBot(Plugin):
         info = await self._get_media_info(xkcd.img)
         if not info:
             return
-        if self.config["inline"]:
-            content = TextMessageEventContent(
-                msgtype=MessageType.TEXT, format=Format.HTML,
-                external_url=f"https://xkcd.com/{xkcd.num}",
-                body=f"{xkcd.num}: **{xkcd.title}**\n"
-                     f"{xkcd.img}\n{xkcd.alt}",
-                formatted_body=f"{xkcd.num}: <strong>{xkcd.safe_title}</strong><br/>"
-                               f"<img src='{info.mxc_uri}' title='{xkcd.alt}'/>")
-            content["license"] = "CC-BY-NC-2.5"
-            content["license_url"] = "https://xkcd.com/license.html"
-            await self.client.send_message(room_id, content)
-        else:
-            await self.client.send_text(room_id, text=f"{xkcd.num}: **{xkcd.title}**",
-                                        html=f"{xkcd.num}: <strong>{xkcd.safe_title}</strong>")
-            content = MediaMessageEventContent(url=info.mxc_uri, body=info.file_name,
-                                               msgtype=MessageType.IMAGE,
-                                               external_url=f"https://xkcd.com/{xkcd.num}",
-                                               info=ImageInfo(
-                                                   mimetype=info.mime_type,
-                                                   size=info.size,
-                                                   width=info.width,
-                                                   height=info.height,
-                                               ),)
-            content["license"] = "CC-BY-NC-2.5"
-            content["license_url"] = "https://xkcd.com/license.html"
-            await self.client.send_message(room_id, content)
-            await self.client.send_text(room_id, text=xkcd.alt)
+        match self.config["post_mode"]:
+            case "split":
+                await self.client.send_text(
+                    room_id,
+                    text=f"{xkcd.num}: **{xkcd.title}**",
+                    html=f"{xkcd.num}: <strong>{xkcd.safe_title}</strong>",
+                )
+                content = MediaMessageEventContent(
+                    url=info.mxc_uri,
+                    body=info.file_name,
+                    msgtype=MessageType.IMAGE,
+                    external_url=f"https://xkcd.com/{xkcd.num}",
+                    info=ImageInfo(
+                        mimetype=info.mime_type,
+                        size=info.size,
+                        width=info.width,
+                        height=info.height,
+                    ),
+                )
+                content["license"] = "CC-BY-NC-2.5"
+                content["license_url"] = "https://xkcd.com/license.html"
+                await self.client.send_message(room_id, content)
+                await self.client.send_text(room_id, text=xkcd.alt)
+
+            case "inline":
+                content = TextMessageEventContent(
+                    msgtype=MessageType.TEXT,
+                    format=Format.HTML,
+                    external_url=f"https://xkcd.com/{xkcd.num}",
+                    body=f"{xkcd.num}: **{xkcd.title}**\n" f"{xkcd.img}\n{xkcd.alt}",
+                    formatted_body=f"{xkcd.num}: <strong>{xkcd.safe_title}</strong><br/>"
+                    f"<img src='{info.mxc_uri}' title='{xkcd.alt}'/>",
+                )
+                content["license"] = "CC-BY-NC-2.5"
+                content["license_url"] = "https://xkcd.com/license.html"
+                await self.client.send_message(room_id, content)
+
+            case "caption":
+                content = MediaMessageEventContent(
+                    msgtype=MessageType.IMAGE,
+                    format=Format.HTML,
+                    external_url=f"https://xkcd.com/{xkcd.num}",
+                    url=info.mxc_uri,
+                    filename=info.file_name,
+                    body=f"{xkcd.num}: **{xkcd.title}**\n{xkcd.alt}",
+                    formatted_body=f"{xkcd.num}: <strong>{xkcd.safe_title}</strong>"
+                    f"<br/><i>{xkcd.alt}</i>",
+                    info=ImageInfo(
+                        mimetype=info.mime_type,
+                        size=info.size,
+                        width=info.width,
+                        height=info.height,
+                    ),
+                )
+                content["license"] = "CC-BY-NC-2.5"
+                content["license_url"] = "https://xkcd.com/license.html"
+                await self.client.send_message(room_id, content)
 
     async def broadcast(self, xkcd: XKCDInfo) -> None:
         self.log.debug(f"Broadcasting xkcd {xkcd.num}")
